@@ -27,11 +27,19 @@ sonic-boom scan
 The tool will list all discovered speakers, including any active Sonic Boom Master nodes.
 
 ### Broadcast Audio (Master)
-To start broadcasting audio from your default microphone/input device:
+To start broadcasting audio from your microphone or system audio:
 ```bash
 sonic-boom master --group MyParty
 ```
-This node will register itself via mDNS and start a UDP Multicast stream.
+1.  The tool will list all available audio input devices.
+2.  Select the index of the device you want to broadcast (e.g., your Microphone for voice, or a Loopback device for system audio).
+
+#### **Broadcasting System Audio (macOS)**
+macOS does not allow direct capture of system audio. To broadcast system audio (e.g., from Spotify or YouTube):
+1.  **Install BlackHole:** `brew install blackhole-2ch`.
+2.  **Audio MIDI Setup:** Create a **Multi-Output Device** in macOS "Audio MIDI Setup" containing both "BlackHole 2ch" and your "Built-in Output".
+3.  **System Settings:** Set your system's sound output to this new **Multi-Output Device**.
+4.  **Sonic Boom:** Run `sonic-boom master` and select the **BlackHole 2ch** index.
 
 ### Receive Audio (Slave)
 To receive and play the audio broadcast on another device in the network:

@@ -16,25 +16,50 @@ MULTICAST_GROUP = '224.3.29.71'
 PORT = 10000
 
 class AudioMaster:
-    def __init__(self, group_name="DefaultGroup"):
+    def __init__(self, group_name="DefaultGroup", device_index=None):
         self.group_name = group_name
         self.p = pyaudio.PyAudio()
+        self.device_index = device_index
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
         self.running = False
         self.sequence = 0
 
+    @staticmethod
+    def list_devices():
+        p = pyaudio.PyAudio()
+        devices = []
+        for i in range(p.get_device_count()):
+            info = p.get_device_info_by_index(i)
+            if info['maxInputChannels'] > 0:
+                devices.append({
+                    'index': i,
+                    'name': info['name'],
+                    'channels': info['maxInputChannels']
+                })
+        p.terminate()
+        return devices
+
     def start(self):
         self.running = True
-        stream = self.p.open(format=FORMAT, channels=CHANNELS, rate=RATE, 
-                             input=True, frames_per_buffer=CHUNK)
+        # If stereo device (like loopback), use 2 channels
+        channels = CHANNELS
+        if self.device_index is not None:
+            info = self.p.get_device_info_by_index(self.device_index)
+            channels = min(2, info['maxInputChannels'])
+
+        stream = self.p.open(format=FORMAT, channels=channels, rate=RATE, 
+                             input=True, input_device_index=self.device_index,
+                             frames_per_buffer=CHUNK)
         
         console.print(f"[bold green]Master started.[/bold green] Broadcasting to {MULTICAST_GROUP}:{PORT} (Group: {self.group_name})")
+        console.print(f"Using device: {self.p.get_device_info_by_index(self.device_index)['name'] if self.device_index is not None else 'Default'}")
         
         try:
             while self.running:
                 data = stream.read(CHUNK, exception_on_overflow=False)
-                # Packet: [seq:I] [time:d] [audio_data]
+                # If we captured mono, but broadcast expects stereo (or vice versa), 
+                # for now we keep it simple, but we could handle resampling here.
                 header = struct.pack("!Id", self.sequence, time.time())
                 self.sock.sendto(header + data, (MULTICAST_GROUP, PORT))
                 self.sequence += 1

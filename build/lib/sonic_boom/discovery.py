@@ -68,7 +68,7 @@ def register_master_service(zc: Zeroconf, name: str, port: int, group: str) -> S
     
     info = ServiceInfo(
         "_sonicboom._udp.local.",
-        f"{name}.sonicboom._udp.local.",
+        f"{name}._sonicboom._udp.local.",
         addresses=[socket.inet_aton(local_ip)],
         port=port,
         properties=desc,
