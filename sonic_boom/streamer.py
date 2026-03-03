@@ -74,13 +74,15 @@ class AudioMaster:
         self.p.terminate()
 
 class AudioSlave:
-    def __init__(self):
+    def __init__(self, multicast_group=MULTICAST_GROUP, port=PORT):
+        self.multicast_group = multicast_group
+        self.port = port
         self.p = pyaudio.PyAudio()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind(('', PORT))
+        self.sock.bind(('', self.port))
         
-        mreq = struct.pack("4sl", socket.inet_aton(MULTICAST_GROUP), socket.INADDR_ANY)
+        mreq = struct.pack("4sl", socket.inet_aton(self.multicast_group), socket.INADDR_ANY)
         self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         
         self.running = False
@@ -91,7 +93,7 @@ class AudioSlave:
         stream = self.p.open(format=FORMAT, channels=CHANNELS, rate=RATE, 
                              output=True, frames_per_buffer=CHUNK)
         
-        console.print(f"[bold blue]Slave started.[/bold blue] Listening for broadcast on {MULTICAST_GROUP}:{PORT}...")
+        console.print(f"[bold blue]Slave started.[/bold blue] Listening for broadcast on {self.multicast_group}:{self.port}...")
         
         try:
             while self.running:

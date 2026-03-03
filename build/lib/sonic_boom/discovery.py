@@ -27,6 +27,8 @@ class SpeakerListener(ServiceListener):
         
         # Determine "Group" info based on common speaker protocols
         group_id = properties.get('md', 'None')  # Model/Group for Google Cast
+        service_type = properties.get('type', 'unknown')
+        
         if 'group' in properties:
             group_id = properties['group']
         elif 'gid' in properties:
@@ -35,9 +37,11 @@ class SpeakerListener(ServiceListener):
         return {
             'name': info.name,
             'server': info.server,
-            'address': f"{'.'.join(map(str, info.addresses[0])) if info.addresses else 'unknown'}:{info.port}",
+            'address': f"{'.'.join(map(str, info.addresses[0])) if info.addresses else 'unknown'}",
+            'port': info.port,
             'properties': properties,
             'group_id': group_id,
+            'service_type': service_type,
         }
 
 def scan_speakers(timeout: int = 5) -> List[Dict[str, Any]]:

@@ -55,9 +55,52 @@ def master(group: str, name: str):
         zc.close()
 
 @main.command()
-def slave():
-    """Start as an audio receiver (Slave)."""
-    slave_node = AudioSlave()
+@click.option('--timeout', default=5, help='Scanning timeout in seconds.')
+def slave(timeout: int):
+    """Scan for masters and start as an audio receiver (Slave)."""
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+    ) as progress:
+        progress.add_task(description="Scanning for Sonic Boom Masters...", total=None)
+        speakers = scan_speakers(timeout)
+
+    masters = [s for s in speakers if s.get('service_type') == 'sonic-boom-master']
+
+    multicast_group = '224.3.29.71' # Default
+    port = 10000 # Default
+
+    if masters:
+        table = Table(title="Available Sonic Boom Masters")
+        table.add_column("Index", style="cyan")
+        table.add_column("Name", style="magenta")
+        table.add_column("Group", style="green")
+        table.add_column("Address", style="yellow")
+
+        for i, m in enumerate(masters):
+            table.add_row(str(i), m['name'], m['group_id'], f"{m['address']}:{m['port']}")
+        
+        console.print(table)
+        
+        choice = click.prompt(
+            "Select master index to connect to (or 'm' for manual)",
+            default='0'
+        )
+
+        if choice != 'm':
+            try:
+                selected_master = masters[int(choice)]
+                # In a real multicast setup, the group IP is usually fixed 
+                # or derived from the service info. For now we use the default
+                # but we could read it from properties if we stored it there.
+                console.print(f"[green]Connecting to {selected_master['name']}...[/green]")
+            except (ValueError, IndexError):
+                console.print("[red]Invalid selection, using defaults.[/red]")
+    else:
+        console.print("[yellow]No Sonic Boom Masters found. Proceeding with default multicast group.[/yellow]")
+
+    slave_node = AudioSlave(multicast_group=multicast_group, port=port)
     slave_node.start()
 
 @main.command()
