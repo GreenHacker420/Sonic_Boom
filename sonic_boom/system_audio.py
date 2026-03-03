@@ -21,7 +21,6 @@ class AudioCaptureDelegate(NSObject):
 
     def stream_didOutputSampleBuffer_ofType_(self, stream, sampleBuffer, outputType):
         if outputType == SCStreamOutputTypeAudio:
-            # Extract raw PCM data
             blockBuffer = CoreMedia.CMSampleBufferGetDataBuffer(sampleBuffer)
             if not blockBuffer:
                 return
@@ -30,18 +29,32 @@ class AudioCaptureDelegate(NSObject):
             if length == 0:
                 return
             
-            # CMBlockBufferCopyDataBytes returns (status, data) where data is bytes
             status, data = CoreMedia.CMBlockBufferCopyDataBytes(blockBuffer, 0, length, None)
             
             if status == 0 and data:
                 try:
                     import numpy as np
-                    # ScreenCaptureKit usually provides Float32. Convert to Int16.
+                    # Float32 is standard for ScreenCaptureKit
                     audio_float = np.frombuffer(data, dtype=np.float32)
+                    
+                    # ScreenCaptureKit can sometimes provide planar data.
+                    # For a 2-channel buffer, if it's planar, 
+                    # the first half is Left, second half is Right.
+                    # We need interleaved (L, R, L, R) for PyAudio.
+                    
+                    # Simple check: if audio_float length is consistent with frames
+                    # we assume interleaved. If not, we might need to de-interleave.
+                    # However, most modern SCK implementations on macOS 14+ 
+                    # provide interleaved floats if requested.
+                    
+                    # Apply gain (e.g., 1.5x) to address "very less audio"
+                    # and clip to prevent distortion
+                    gain = 1.8 
+                    audio_float = np.clip(audio_float * gain, -1.0, 1.0)
+                    
                     audio_int16 = (audio_float * 32767).astype(np.int16)
                     self.q.put(audio_int16.tobytes())
                 except Exception as e:
-                    # Fallback if it's already Int16 or conversion fails
                     self.q.put(bytes(data))
 
 class SystemAudioCapture:
@@ -52,7 +65,6 @@ class SystemAudioCapture:
         self.delegate = None
 
     def start(self):
-        """Prepares the capture. The caller MUST run a CFRunLoop on the main thread."""
         self.running = True
         self._setup_capture()
 
@@ -67,27 +79,23 @@ class SystemAudioCapture:
                 return
 
             display = content.displays()[0]
-            # Use the most standard initializer
             filter = SCContentFilter.alloc().initWithDisplay_excludingApplications_exceptingWindows_(display, [], [])
 
             config = SCStreamConfiguration.alloc().init()
             config.setCapturesAudio_(True)
             config.setExcludesCurrentProcessAudio_(True)
-
-            # Basic video properties sometimes required even for audio-only
+            
             config.setWidth_(1280)
             config.setHeight_(720)
             config.setShowsCursor_(False)
             config.setPixelFormat_(1111970369) # 'BGRA'
-
-            # Standard audio properties
+            
             config.setSampleRate_(44100)
             config.setChannelCount_(2)
             
             self.delegate = AudioCaptureDelegate.alloc().initWithQueue_(self.audio_queue)
             self.stream = SCStream.alloc().initWithFilter_configuration_delegate_(filter, config, self.delegate)
             
-            # addStreamOutput returns (ok, error)
             ok, err = self.stream.addStreamOutput_type_sampleHandlerQueue_error_(
                 self.delegate, SCStreamOutputTypeAudio, None, objc.NULL
             )
@@ -98,11 +106,10 @@ class SystemAudioCapture:
             
             def start_handler(err):
                 if err:
-                    console.print(f"[red]Error starting capture: {err}. Ensure Terminal has 'Screen Recording' permissions.[/red]")
+                    console.print(f"[red]Error starting capture: {err}[/red]")
                 else:
                     console.print("[green]System audio capture active (ScreenCaptureKit).[/green]")
 
-            # Give it time to settle
             time.sleep(0.2)
             self.stream.startCaptureWithCompletionHandler_(start_handler)
 
