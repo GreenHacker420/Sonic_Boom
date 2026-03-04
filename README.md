@@ -13,8 +13,11 @@ A simple CLI tool to scan for speaker broadcasters (Google Cast, Sonos, AirPlay,
 # Clone the repository (if applicable)
 cd Sonic_Boom
 
+# for macOS
+brew install portaudio
+
 # Install dependencies
-python3 -m pip install .
+python3 -m pip install -r requirements.txt
 ```
 
 ## Usage

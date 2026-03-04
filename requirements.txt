@@ -1,0 +1,8 @@
+pyaudio
+rich
+zeroconf
+numpy
+pyobjc-core
+pyobjc-framework-Cocoa
+pyobjc-framework-ScreenCaptureKit
+pyobjc-framework-CoreMedia
